@@ -1,0 +1,13 @@
+# Ignore specific folders we don't want to track
+OxiqAI-DesktopApp/
+AudioAgent/
+meet-transcriber/
+meeting-agent/
+AudioAgent-main/
+AudioAgent-New.zip
+
+# Ignore dependencies and build outputs
+**/node_modules/
+**/dist/
+.DS_Store
+*.log

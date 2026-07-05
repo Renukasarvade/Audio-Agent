@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>OxiqAI Engine</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    
+    body {
+      font-family: 'Inter', sans-serif;
+      margin: 0;
+      padding: 0;
+      width: 380px;
+      background: #0f172a;
+      color: #f8fafc;
+      overflow-x: hidden;
+    }
+
+    .header-bar {
+      padding: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    h1 { font-size: 16px; margin: 0; color: #38bdf8; }
+
+    .version { font-size: 10px; color: #64748b; }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .tab-btn {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: #94a3b8;
+      padding: 10px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 12px;
+      transition: all 0.2s;
+      border-bottom: 2px solid transparent;
+    }
+
+    .tab-btn:hover { color: #f8fafc; }
+
+    .tab-btn.active {
+      color: #38bdf8;
+      border-bottom-color: #38bdf8;
+    }
+
+    .tab-content { padding: 16px; display: none; min-height: 200px; }
+    .tab-content.active { display: block; }
+
+    /* Card */
+    .card {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+
+    .status-text {
+      font-size: 13px;
+      color: #94a3b8;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .status-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #ef4444; display: inline-block;
+    }
+
+    .status-dot.running {
+      background: #10b981;
+      box-shadow: 0 0 8px #10b981;
+    }
+
+    /* Form */
+    .form-group { margin-bottom: 10px; }
+
+    label {
+      display: block; font-size: 11px; font-weight: 600;
+      color: #94a3b8; margin-bottom: 4px;
+      text-transform: uppercase; letter-spacing: 0.5px;
+    }
+
+    input {
+      width: 100%; box-sizing: border-box;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+      padding: 7px 10px; border-radius: 6px;
+      color: white; font-size: 12px; outline: none;
+      font-family: 'Inter', sans-serif;
+      transition: border-color 0.2s;
+    }
+
+    input:focus { border-color: #38bdf8; }
+
+    /* Buttons */
+    .btn {
+      width: 100%; background: #0ea5e9; color: white;
+      border: none; padding: 10px; border-radius: 6px;
+      cursor: pointer; font-weight: 600; font-size: 13px;
+      transition: background 0.2s;
+    }
+
+    .btn:hover { background: #0284c7; }
+    .btn-stop { background: #ef4444; }
+    .btn-stop:hover { background: #dc2626; }
+    .btn:disabled { background: #475569; cursor: not-allowed; }
+
+    /* History */
+    .meeting-list {
+      max-height: 250px; overflow-y: auto;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+
+    .meeting-item {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.05);
+      padding: 10px; border-radius: 8px;
+      cursor: pointer; transition: background 0.2s;
+    }
+
+    .meeting-item:hover { background: rgba(255,255,255,0.1); }
+
+    .meeting-meta {
+      display: flex; justify-content: space-between;
+      font-size: 11px; color: #94a3b8; margin-bottom: 4px;
+    }
+
+    .meeting-title { font-size: 13px; font-weight: 600; color: #f8fafc; }
+
+    .empty-state {
+      text-align: center; color: #64748b;
+      font-size: 12px; padding: 20px 0; font-style: italic;
+    }
+
+    .detail-view { display: none; flex-direction: column; gap: 12px; }
+
+    .detail-header {
+      display: flex; justify-content: space-between; align-items: center;
+      border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px;
+    }
+
+    .back-btn {
+      background: transparent; border: none;
+      color: #38bdf8; cursor: pointer; font-size: 12px; padding: 0;
+    }
+
+    .transcript-preview {
+      background: rgba(0,0,0,0.3);
+      border: 1px solid rgba(255,255,255,0.05);
+      border-radius: 6px; padding: 8px;
+      max-height: 180px; overflow-y: auto;
+      font-size: 11px; line-height: 1.4;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+
+    .preview-line {
+      border-bottom: 1px solid rgba(255,255,255,0.02);
+      padding-bottom: 4px;
+    }
+
+    .preview-line b { color: #38bdf8; }
+
+    .actions-grid { display: flex; gap: 8px; }
+  </style>
+</head>
+<body>
+  <div class="header-bar">
+    <h1>OxiqAI Engine</h1>
+    <span class="version">v1.1.0</span>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" id="tab-control">Control</button>
+    <button class="tab-btn" id="tab-history">History</button>
+  </div>
+
+  <!-- CONTROL TAB -->
+  <div class="tab-content active" id="content-control">
+    <div class="card">
+      <div class="status-text">
+        <span class="status-dot" id="status-dot"></span>
+        <span id="status-text">Ready to connect</span>
+      </div>
+
+      <div class="form-group">
+        <label for="username-input">Your Display Name (For Teams)</label>
+        <input type="text" id="username-input" placeholder="e.g. John Doe" />
+      </div>
+
+      <button class="btn" id="start-btn">Inject to Meeting</button>
+      <button class="btn btn-stop" id="stop-btn" style="display: none;">Stop & Eject</button>
+    </div>
+
+    <div class="card">
+      <h3 style="font-size: 12px; margin-top: 0; margin-bottom: 8px; color: #38bdf8; text-transform: uppercase;">Supabase Config</h3>
+      <div class="form-group">
+        <label for="db-url">Supabase URL</label>
+        <input type="text" id="db-url" placeholder="https://your-project.supabase.co" />
+      </div>
+      <div class="form-group">
+        <label for="db-key">Publishable Key</label>
+        <input type="password" id="db-key" placeholder="sb_publishable_..." />
+      </div>
+      <button class="btn" id="save-config-btn" style="padding: 6px 12px; font-size: 11px; width: auto; margin-top: 4px;">Save Database Credentials</button>
+    </div>
+  </div>
+
+  <!-- HISTORY TAB -->
+  <div class="tab-content" id="content-history">
+    <div id="history-list-view">
+      <div class="meeting-list" id="meeting-list">
+        <div class="empty-state">No recorded meetings found.</div>
+      </div>
+    </div>
+
+    <div class="detail-view" id="history-detail-view">
+      <div class="detail-header">
+        <button class="back-btn" id="detail-back-btn">&larr; Back to List</button>
+        <span id="detail-platform" style="font-size: 11px; font-weight: bold; color: #38bdf8;"></span>
+      </div>
+      <div style="font-size: 12px; color: #94a3b8;" id="detail-datetime"></div>
+      <div class="transcript-preview" id="detail-preview"></div>
+      <div class="actions-grid">
+        <button class="btn" id="export-csv-btn">Export CSV</button>
+        <button class="btn" id="export-txt-btn" style="background: #374151;">Export TXT</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="./popup.ts"></script>
+</body>
+</html>

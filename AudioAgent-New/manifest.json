@@ -1,0 +1,55 @@
+{
+  "manifest_version": 3,
+  "name": "OxiqAI Audio Engine",
+  "version": "1.2.0",
+  "description": "Enterprise-grade universal meeting transcription.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "unlimitedStorage",
+    "declarativeNetRequest",
+    "declarativeNetRequestWithHostAccess"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "iframe_rules",
+        "enabled": true,
+        "path": "iframe_rules.json"
+      }
+    ]
+  },
+  "background": {
+    "service_worker": "src/extension/background.ts",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://meet.google.com/*"],
+      "js": ["src/extension/content/contentScript.ts"],
+      "all_frames": true
+    },
+    {
+      "matches": [
+        "https://teams.microsoft.com/*",
+        "https://teams.live.com/*"
+      ],
+      "js": ["src/extension/content/teamsEntry.ts"],
+      "all_frames": true
+    },
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": ["src/extension/content/dashboardEntry.ts"]
+    }
+  ],
+  "action": {
+    "default_popup": "src/extension/popup/index.html"
+  }
+}
