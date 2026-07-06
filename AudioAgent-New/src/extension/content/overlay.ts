@@ -413,18 +413,33 @@ export class OverlayUI {
           </div>
         </section>
         
-        <section class="right-panel glass-dark panel-radius">
-          <div class="flex items-center gap-2" style="padding:16px 16px 12px;border-bottom:1px solid rgba(255,255,255,0.2);">
-            <span style="color:rgba(37,99,235,0.7)">${icons.MessageSquare}</span>
-            <span class="text-sm font-semibold" style="color:rgba(30,58,138,0.8)">Chat Room</span>
+        <section class="right-panel glass-dark panel-radius" style="display:flex; flex-direction:column;">
+          <div class="flex items-center justify-between" style="padding:12px 16px; border-bottom:1px solid rgba(255,255,255,0.2);">
+            <button id="btn-tab-chat" style="background:none; border:none; color:rgba(30,58,138,0.8); font-size:13px; font-weight:600; cursor:pointer; padding:6px 12px; border-radius:6px; font-family:inherit;">💬 Chat</button>
+            <button id="btn-tab-parts" style="background:none; border:none; color:rgba(30,58,138,0.5); font-size:13px; font-weight:600; cursor:pointer; padding:6px 12px; border-radius:6px; font-family:inherit;">👥 Contributors</button>
           </div>
-          <div class="scroll-container" id="chat-list">
-             <!-- Chats go here -->
+          
+          <!-- Chat Panel Content -->
+          <div id="panel-chat-content" style="display:flex; flex-direction:column; flex:1; overflow:hidden;">
+            <div class="scroll-container" id="chat-list" style="flex:1;">
+               <!-- Chats go here -->
+            </div>
+            <div class="chat-input-wrapper">
+              <div class="chat-input-box">
+                <input type="text" id="chat-input" placeholder="Message..." />
+                <button class="chat-send-btn" id="btn-send" disabled>${icons.Send}</button>
+              </div>
+            </div>
           </div>
-          <div class="chat-input-wrapper">
-            <div class="chat-input-box">
-              <input type="text" id="chat-input" placeholder="Message..." />
-              <button class="chat-send-btn" id="btn-send" disabled>${icons.Send}</button>
+
+          <!-- Participants Panel Content -->
+          <div id="panel-parts-content" style="display:none; flex-direction:column; flex:1; overflow:hidden; padding:16px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                <span style="font-size:11px; font-weight:600; text-transform:uppercase; color:rgba(30,58,138,0.5); letter-spacing:0.5px;">Active Session Users</span>
+                <span id="oxiq-user-count-badge" style="background:rgba(56,189,248,0.1); color:#38bdf8; font-size:11px; font-weight:700; padding:2px 8px; border-radius:4px;">1</span>
+            </div>
+            <div id="oxiq-participants-box" class="scroll-container" style="display:flex; flex-direction:column; gap:8px; flex:1; overflow-y:auto;">
+              <!-- Participants go here -->
             </div>
           </div>
         </section>
@@ -447,6 +462,27 @@ export class OverlayUI {
     // Try to open native chat first so we can scrape it
     const chatBtn = document.querySelector('button[aria-label*="chat" i], [data-tooltip*="chat" i]') as HTMLElement;
     if (chatBtn) chatBtn.click();
+
+    const btnTabChat = this.shadow.getElementById('btn-tab-chat') as HTMLElement;
+    const btnTabParts = this.shadow.getElementById('btn-tab-parts') as HTMLElement;
+    const panelChat = this.shadow.getElementById('panel-chat-content') as HTMLElement;
+    const panelParts = this.shadow.getElementById('panel-parts-content') as HTMLElement;
+
+    if (btnTabChat && btnTabParts && panelChat && panelParts) {
+      btnTabChat.addEventListener('click', () => {
+        btnTabChat.style.color = 'rgba(30,58,138,0.8)';
+        btnTabParts.style.color = 'rgba(30,58,138,0.5)';
+        panelChat.style.display = 'flex';
+        panelParts.style.display = 'none';
+      });
+      btnTabParts.addEventListener('click', () => {
+        btnTabChat.style.color = 'rgba(30,58,138,0.5)';
+        btnTabParts.style.color = 'rgba(30,58,138,0.8)';
+        panelChat.style.display = 'none';
+        panelParts.style.display = 'flex';
+        this.refreshParticipantsList();
+      });
+    }
 
     let micOn: boolean | null = null;
     let camOn: boolean | null = null;
@@ -656,8 +692,12 @@ export class OverlayUI {
          }
       };
 
-      setInterval(pollSupabase, 3000);
+      setInterval(() => {
+        pollSupabase();
+        this.refreshParticipantsList();
+      }, 3000);
       pollSupabase();
+      this.refreshParticipantsList();
     }
 
     // Chat Logic
@@ -940,5 +980,32 @@ export class OverlayUI {
     }
     
     this.transcriptContainer.scrollTop = this.transcriptContainer.scrollHeight;
+  }
+
+  public refreshParticipantsList() {
+    const box = this.shadow?.getElementById('oxiq-participants-box');
+    const badge = this.shadow?.getElementById('oxiq-user-count-badge');
+    if (!box) return;
+
+    // Safely extract real-time name indicators straight from Google's underlying HTML tree loops
+    const nativeNames = Array.from(document.querySelectorAll('[data-self-name], [jsname="Z7uXbe"]'))
+        .map(el => (el as HTMLElement).textContent?.trim())
+        .filter((value, index, self) => value && self.indexOf(value) === index);
+
+    // Fallback data mapping logic
+    const activeUsers = nativeNames.length > 0 ? nativeNames : ['Renuka Sarvade (You)'];
+    if (badge) badge.textContent = activeUsers.length.toString();
+
+    box.innerHTML = activeUsers.map(name => `
+        <div style="display:flex; align-items:center; justify-content:space-between; padding:10px 12px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); border-radius:8px; margin-bottom:8px;">
+            <div style="display:flex; align-items:center; gap:10px;">
+                <div style="width:26px; height:26px; background:linear-gradient(135deg, #38bdf8, #6366f1); border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:700; color:#fff;">
+                    ${(name || 'P').charAt(0).toUpperCase()}
+                </div>
+                <span style="font-size:13px; font-weight:500; color:#e2e8f0; font-family: 'Inter', sans-serif;">${name}</span>
+            </div>
+            <span style="font-size:10px; color:#10b981; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; font-family: 'Inter', sans-serif;">Online</span>
+        </div>
+    `).join('');
   }
 }

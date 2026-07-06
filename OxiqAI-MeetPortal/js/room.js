@@ -9,6 +9,7 @@ import {
     fetchChatMessages,
     fetchTranscripts,
     fetchFiles,
+    supabase,
 } from './supabase.js';
 
 import { startTranscription, stopTranscription, renderTranscripts } from './transcription.js';
@@ -156,6 +157,53 @@ document.addEventListener('DOMContentLoaded', async () => {
                             roomId: roomId
                         }, '*');
                     }
+                    if (event.data.type === 'OXIQ_MIC_STATE') {
+                        const btn = document.getElementById('cover-btn-mic');
+                        if (btn) {
+                            const isMuted = event.data.isMuted;
+                            btn.classList.toggle('active', isMuted);
+                            btn.style.background = isMuted ? '#ef4444' : '#334155';
+                        }
+                    }
+                    if (event.data.type === 'OXIQ_CAM_STATE') {
+                        const btn = document.getElementById('cover-btn-cam');
+                        if (btn) {
+                            const isMuted = event.data.isMuted;
+                            btn.classList.toggle('active', isMuted);
+                            btn.style.background = isMuted ? '#ef4444' : '#334155';
+                        }
+                    }
+                    if (event.data.type === 'OXIQ_PARTICIPANT_COUNT') {
+                        const countEl = document.getElementById('participant-count');
+                        if (countEl) {
+                            const count = event.data.count;
+                            countEl.textContent = `${count} participant${count !== 1 ? 's' : ''}`;
+                        }
+                    }
+                    if (event.data.type === 'OXIQ_PARTICIPANTS_LIST') {
+                        const box = document.getElementById('oxiq-participants-box');
+                        const badge = document.getElementById('oxiq-user-count-badge');
+                        if (box) {
+                            const activeUsers = event.data.list || [];
+                            if (badge) badge.textContent = activeUsers.length.toString();
+                            
+                            box.innerHTML = activeUsers.map(name => `
+                                <div style="display:flex; align-items:center; justify-content:space-between; padding:10px 12px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); border-radius:8px; margin-bottom:8px;">
+                                    <div style="display:flex; align-items:center; gap:10px;">
+                                        <div style="width:26px; height:26px; background:linear-gradient(135deg, #38bdf8, #6366f1); border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:700; color:#fff;">
+                                            ${(name || 'P').charAt(0).toUpperCase()}
+                                        </div>
+                                        <span style="font-size:13px; font-weight:500; color:#e2e8f0;">${name}</span>
+                                    </div>
+                                    <span style="font-size:10px; color:#10b981; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">Online</span>
+                                </div>
+                            `).join('');
+                        }
+                    }
+                    if (event.data.action === 'PORTAL_REDIRECT_HOME') {
+                        console.log('[OxiqAI] Timeout redirect home requested.');
+                        window.location.href = 'index.html';
+                    }
                 }
             });
         }
@@ -197,6 +245,47 @@ document.addEventListener('DOMContentLoaded', async () => {
         const iframe = document.getElementById('meeting-iframe');
         if (iframe) {
             iframe.contentWindow.postMessage({ type: 'OXIQ_TOGGLE_SCREEN' }, '*');
+        }
+    };
+
+    window.toggleCoverEmoji = function toggleCoverEmoji() {
+        const iframe = document.getElementById('meeting-iframe');
+        if (iframe) {
+            iframe.contentWindow.postMessage({ type: 'OXIQ_TOGGLE_EMOJI' }, '*');
+        }
+    };
+
+    window.toggleCoverCc = function toggleCoverCc() {
+        const iframe = document.getElementById('meeting-iframe');
+        const btn = document.getElementById('cover-btn-cc');
+        if (iframe) {
+            iframe.contentWindow.postMessage({ type: 'OXIQ_TOGGLE_CC' }, '*');
+            btn.classList.toggle('active');
+            btn.style.background = btn.classList.contains('active') ? '#ef4444' : '#334155';
+        }
+    };
+
+    window.toggleCoverHand = function toggleCoverHand() {
+        const iframe = document.getElementById('meeting-iframe');
+        const btn = document.getElementById('cover-btn-hand');
+        if (iframe) {
+            iframe.contentWindow.postMessage({ type: 'OXIQ_TOGGLE_HAND' }, '*');
+            btn.classList.toggle('active');
+            btn.style.background = btn.classList.contains('active') ? '#ef4444' : '#334155';
+        }
+    };
+
+    window.toggleCoverMore = function toggleCoverMore() {
+        const iframe = document.getElementById('meeting-iframe');
+        if (iframe) {
+            iframe.contentWindow.postMessage({ type: 'OXIQ_TOGGLE_MORE' }, '*');
+        }
+    };
+
+    window.toggleCoverHost = function toggleCoverHost() {
+        const iframe = document.getElementById('meeting-iframe');
+        if (iframe) {
+            iframe.contentWindow.postMessage({ type: 'OXIQ_TOGGLE_HOST' }, '*');
         }
     };
 
@@ -251,63 +340,100 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    async function pollTranscripts() {
+    let localTranscripts = [];
+    let localChats = [];
+    let localFiles = [];
+
+    // Load initial data
+    async function loadInitialData() {
         try {
             const transcripts = await fetchTranscripts(roomId);
             if (transcripts) {
-                renderTranscripts(transcripts, transcriptList);
+                localTranscripts = transcripts;
+                renderTranscripts(localTranscripts, transcriptList);
             }
         } catch (err) {
-            console.error('Transcript poll error:', err);
+            console.error('Initial Transcripts fetch error:', err);
         }
-    }
 
-    setInterval(pollTranscripts, 3000);
-    pollTranscripts();
-
-    // ================================================================
-    // Chat
-    // ================================================================
-    initChat(roomId, displayName);
-
-    const chatList = document.getElementById('chat-list');
-
-    async function pollChat() {
         try {
             const messages = await fetchChatMessages(roomId);
             if (messages) {
-                renderMessages(messages, chatList);
+                localChats = messages;
+                renderMessages(localChats, chatList);
             }
         } catch (err) {
-            console.error('Chat poll error:', err);
+            console.error('Initial Chats fetch error:', err);
         }
-    }
 
-    setInterval(pollChat, 3000);
-    pollChat();
-
-    // ================================================================
-    // Files
-    // ================================================================
-    const filesList = document.getElementById('files-list');
-
-    async function pollFiles() {
         try {
             const files = await fetchFiles(roomId);
             if (files) {
-                renderFiles(files, filesList);
+                localFiles = files;
+                renderFiles(localFiles, filesList);
             }
         } catch (err) {
-            console.error('Files poll error:', err);
+            console.error('Initial Files fetch error:', err);
         }
     }
 
+    loadInitialData();
+
+    // ================================================================
+    // Chat & Files Setup
+    // ================================================================
+    initChat(roomId, displayName);
+    const chatList = document.getElementById('chat-list');
+
+    const filesList = document.getElementById('files-list');
     initFiles(roomId, displayName, () => {
-        pollFiles();
+        // Handled dynamically by realtime channel updates
     });
 
-    setInterval(pollFiles, 3000);
-    pollFiles();
+    // ================================================================
+    // Supabase Realtime Subscription Channels (Instant WebSocket Sync)
+    // ================================================================
+    if (supabase) {
+        supabase
+            .channel(`room:${roomId}`)
+            .on('postgres_changes', {
+                event: 'INSERT',
+                schema: 'public',
+                table: 'meeting_transcripts_live',
+                filter: `room_id=eq.${roomId}`
+            }, (payload) => {
+                // Prevent duplicate elements in the local list
+                if (!localTranscripts.some(t => t.id === payload.new.id || (t.text === payload.new.text && t.speaker === payload.new.speaker && t.timestamp === payload.new.timestamp))) {
+                    localTranscripts.push(payload.new);
+                    renderTranscripts(localTranscripts, transcriptList);
+                }
+            })
+            .on('postgres_changes', {
+                event: 'INSERT',
+                schema: 'public',
+                table: 'meeting_chats',
+                filter: `room_id=eq.${roomId}`
+            }, (payload) => {
+                if (!localChats.some(c => c.id === payload.new.id)) {
+                    localChats.push(payload.new);
+                    renderMessages(localChats, chatList);
+                }
+            })
+            .on('postgres_changes', {
+                event: 'INSERT',
+                schema: 'public',
+                table: 'meeting_files',
+                filter: `room_id=eq.${roomId}`
+            }, (payload) => {
+                if (!localFiles.some(f => f.id === payload.new.id)) {
+                    localFiles.push(payload.new);
+                    renderFiles(localFiles, filesList);
+                }
+            })
+            .subscribe((status) => {
+                console.log(`[OxiqAI Realtime] Subscription status for room ${roomId}:`, status);
+            });
+    }
 
     window.copyInviteLink = function copyInviteLink() {
         navigator.clipboard.writeText(window.location.href);

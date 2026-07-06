@@ -6,6 +6,9 @@
 export const SUPABASE_URL = 'https://cbbkquksmgkfvezqspul.supabase.co';
 export const SUPABASE_KEY = 'sb_publishable_LUQNefdS-HV_TNSam2TNkg_nyd48iJ6';
 
+export const supabase = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+
+
 // ── Generic Request Helper ──────────────────────────────────
 export async function supabaseRequest(endpoint, method = 'GET', body = null) {
   const url = `${SUPABASE_URL}${endpoint}`;

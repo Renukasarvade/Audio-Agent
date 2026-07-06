@@ -56,7 +56,8 @@ function resolveSelector(candidates: string[], root: ParentNode = document): Ele
 
 export class TeamsDomWatcher implements PlatformDomWatcher {
   public readonly platformName = 'teams';
-  private timer: ReturnType<typeof setInterval> | null = null;
+  private observer: MutationObserver | null = null;
+  private initTimer: ReturnType<typeof setInterval> | null = null;
   private onSegmentsCb?: (segments: TranscriptSegment[]) => void;
   private localUserName: string = '';
 
@@ -79,13 +80,27 @@ export class TeamsDomWatcher implements PlatformDomWatcher {
     // Attempt to automatically turn on captions
     this.turnOnCaptions();
 
-    this.timer = setInterval(() => this.pollCaptions(), 300);
-    console.log('[OxiqAI] DOM Scraper started – simple polling (Teams)');
+    this.initTimer = setInterval(() => {
+      let container = resolveSelector(TEAMS_SELECTORS.container) as HTMLElement | null;
+      if (container && !this.observer) {
+        console.log('[OxiqAI] Teams captions container detected. Attaching MutationObserver...');
+        this.observer = new MutationObserver(() => {
+          this.pollCaptions();
+        });
+        this.observer.observe(container, { childList: true, subtree: true, characterData: true });
+        this.pollCaptions();
+      } else if (!container && this.observer) {
+        console.log('[OxiqAI] Teams captions container lost. Disconnecting MutationObserver.');
+        this.observer.disconnect();
+        this.observer = null;
+      }
+    }, 1500);
+
+    console.log('[OxiqAI] DOM Scraper started – MutationObserver (Teams)');
     
     // Check if we have the username configured
     if (!this.localUserName) {
-      console.warn('[OxiqAI] localUserName is not set in chrome.storage.local. All speech will default to remote.');
-      // You could trigger a UI prompt here if desired.
+      console.log('[OxiqAI] localUserName is not set in chrome.storage.local. All speech will default to remote.');
     }
   }
 
@@ -97,7 +112,7 @@ export class TeamsDomWatcher implements PlatformDomWatcher {
       
       const moreBtn = resolveSelector(TEAMS_SELECTORS.moreButton) as HTMLElement;
       if (!moreBtn) {
-        console.warn('[OxiqAI] Auto-enable failed: "More" button not found.');
+        console.log('[OxiqAI] Auto-enable failed: "More" button not found.');
         return;
       }
       
@@ -109,7 +124,7 @@ export class TeamsDomWatcher implements PlatformDomWatcher {
       
       const langMenu = resolveSelector(TEAMS_SELECTORS.languageMenu) as HTMLElement;
       if (!langMenu) {
-        console.warn('[OxiqAI] Auto-enable failed: "Language and speech" menu not found.');
+        console.log('[OxiqAI] Auto-enable failed: "Language and speech" menu not found.');
         // Clean up: close the More menu
         (resolveSelector(TEAMS_SELECTORS.moreButtonExpanded) as HTMLElement)?.click();
         return;
@@ -240,9 +255,13 @@ export class TeamsDomWatcher implements PlatformDomWatcher {
   }
 
   stop() {
-    if (this.timer) {
-      clearInterval(this.timer);
-      this.timer = null;
+    if (this.initTimer) {
+      clearInterval(this.initTimer);
+      this.initTimer = null;
+    }
+    if (this.observer) {
+      this.observer.disconnect();
+      this.observer = null;
     }
     const style = document.getElementById('oxiqai-hide-native-captions-teams');
     if (style) style.remove();

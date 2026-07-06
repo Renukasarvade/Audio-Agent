@@ -2,7 +2,9 @@ import { PlatformDomWatcher, TranscriptSegment } from '../../types/engine.ts';
 
 export class MeetDomWatcher implements PlatformDomWatcher {
   public readonly platformName = 'meet';
-  private timer: ReturnType<typeof setInterval> | null = null;
+  private observer: MutationObserver | null = null;
+  private chatTimer: ReturnType<typeof setInterval> | null = null;
+  private initTimer: ReturnType<typeof setInterval> | null = null;
   private onChatCb?: (sender: string, text: string, timeMs: number) => void;
   private seenChats = new Set<string>();
   private onSegmentsCb?: (segments: TranscriptSegment[]) => void;
@@ -19,12 +21,30 @@ export class MeetDomWatcher implements PlatformDomWatcher {
     this.onSegmentsCb = onSegments;
     this.turnOnCaptions();
     this.injectCssToHideNativeCaptions();
-    // Simple polling every 300 ms – reliable and easy to understand
-    this.timer = setInterval(() => {
-      this.pollCaptions();
+
+    // Check periodically for captions container presence and attach/detach observer dynamically
+    this.initTimer = setInterval(() => {
+      let container = document.querySelector('[role="region"][aria-label*="caption" i], [aria-label*="caption" i] [jsname="dsSSbb"]') as HTMLElement | null;
+      if (container && !this.observer) {
+        console.log('[OxiqAI] Captions container detected. Attaching MutationObserver...');
+        this.observer = new MutationObserver(() => {
+          this.pollCaptions();
+        });
+        this.observer.observe(container, { childList: true, subtree: true, characterData: true });
+        this.pollCaptions();
+      } else if (!container && this.observer) {
+        console.log('[OxiqAI] Captions container lost. Disconnecting MutationObserver.');
+        this.observer.disconnect();
+        this.observer = null;
+      }
+    }, 1500);
+
+    // Poll chats every 1 second (infrequent checking is fine)
+    this.chatTimer = setInterval(() => {
       this.pollChats();
-    }, 300);
-    console.log('[OxiqAI] DOM Scraper started – simple polling (Meet)');
+    }, 1000);
+
+    console.log('[OxiqAI] DOM Watcher initialized (Meet)');
   }
 
   private pollCaptions() {
@@ -242,7 +262,7 @@ export class MeetDomWatcher implements PlatformDomWatcher {
         return;
       }
     }
-    console.warn('[OxiqAI] Captions toggle button not found – please enable captions manually (or press "c").');
+    console.log('[OxiqAI] Captions toggle button not found – please enable captions manually (or press "c").');
   }
 
   private injectCssToHideNativeCaptions() {
@@ -274,9 +294,17 @@ export class MeetDomWatcher implements PlatformDomWatcher {
   }
 
   stop() {
-    if (this.timer) {
-      clearInterval(this.timer);
-      this.timer = null;
+    if (this.initTimer) {
+      clearInterval(this.initTimer);
+      this.initTimer = null;
+    }
+    if (this.chatTimer) {
+      clearInterval(this.chatTimer);
+      this.chatTimer = null;
+    }
+    if (this.observer) {
+      this.observer.disconnect();
+      this.observer = null;
     }
     this.lastSeenText = '';
     const style = document.getElementById('oxiqai-hide-native-captions');
