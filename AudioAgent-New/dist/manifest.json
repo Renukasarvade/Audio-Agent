@@ -1,0 +1,96 @@
+{
+  "manifest_version": 3,
+  "name": "OxiqAI Audio Engine",
+  "version": "1.2.0",
+  "description": "Enterprise-grade universal meeting transcription.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "unlimitedStorage",
+    "declarativeNetRequest",
+    "declarativeNetRequestWithHostAccess"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "iframe_rules",
+        "enabled": true,
+        "path": "iframe_rules.json"
+      }
+    ]
+  },
+  "background": {
+    "service_worker": "service-worker-loader.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "js": [
+        "assets/contentScript.ts-loader-CH-qtgd5.js"
+      ],
+      "matches": [
+        "https://meet.google.com/*"
+      ],
+      "all_frames": true
+    },
+    {
+      "js": [
+        "assets/teamsEntry.ts-loader-CwYIBj09.js"
+      ],
+      "matches": [
+        "https://teams.microsoft.com/*",
+        "https://teams.live.com/*"
+      ],
+      "all_frames": true
+    },
+    {
+      "js": [
+        "assets/dashboardEntry.ts-CR2luvTO.js"
+      ],
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ]
+    }
+  ],
+  "action": {
+    "default_popup": "src/extension/popup/index.html"
+  },
+  "web_accessible_resources": [
+    {
+      "matches": [
+        "https://meet.google.com/*"
+      ],
+      "resources": [
+        "assets/overlay-G-dbucQs.js",
+        "assets/contentScript.ts-QiPcIbc8.js"
+      ],
+      "use_dynamic_url": false
+    },
+    {
+      "matches": [
+        "https://teams.live.com/*",
+        "https://teams.microsoft.com/*"
+      ],
+      "resources": [
+        "assets/overlay-G-dbucQs.js",
+        "assets/teamsEntry.ts-CobO1Ic1.js"
+      ],
+      "use_dynamic_url": false
+    },
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "resources": [
+        "assets/dashboardEntry.ts-CR2luvTO.js"
+      ],
+      "use_dynamic_url": false
+    }
+  ]
+}

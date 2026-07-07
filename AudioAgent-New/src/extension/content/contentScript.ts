@@ -386,7 +386,10 @@ function hideMeetingDetailsLayout() {
     } catch (e) {}
   });
 
-  // Dynamic regex text-sweeper to hide meeting link code formats (e.g., xxx-yyyy-zzz)
+}
+
+function runThrottledRegexTextSweeper() {
+  // Throttled sweep of the DOM for code format strings (e.g. xxx-yyyy-zzz) to prevent 100% CPU loops
   try {
     const divs = document.querySelectorAll('div, span, button');
     const codeRegex = /\b[a-z]{3}-[a-z]{4}-[a-z]{3}\b/;
@@ -791,6 +794,10 @@ if (window.self !== window.top) {
   checkMeetingDisconnection();
   handleAutomatedGuestAdmission();
   autoBypassGreenRoom();
+
+  // Run the heavy regex text sweeper in a throttled interval (once every 1.5s) to eliminate CPU lag
+  runThrottledRegexTextSweeper();
+  setInterval(runThrottledRegexTextSweeper, 1500);
 
   // Re-verify styles and hide dynamic meeting link layouts when DOM shifts
   const engineObserver = new MutationObserver(() => {

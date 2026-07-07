@@ -327,7 +327,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     transcriptToggle.addEventListener('click', () => {
         if (!transcribing) {
             startTranscription(roomId, displayName, () => {
-                pollTranscripts();
+                // Realtime subscription and syncData background interval handle updates
             });
             transcribing = true;
             transcriptToggle.classList.add('active');
@@ -377,7 +377,41 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    // Background sync fallback to keep all participants instantly updated (in case WebSockets fail/replicate slowly)
+    async function syncData() {
+        try {
+            const transcripts = await fetchTranscripts(roomId);
+            if (transcripts && JSON.stringify(transcripts) !== JSON.stringify(localTranscripts)) {
+                localTranscripts = transcripts;
+                renderTranscripts(localTranscripts, transcriptList);
+            }
+        } catch (err) {
+            console.error('Sync transcripts error:', err);
+        }
+
+        try {
+            const messages = await fetchChatMessages(roomId);
+            if (messages && JSON.stringify(messages) !== JSON.stringify(localChats)) {
+                localChats = messages;
+                renderMessages(localChats, chatList);
+            }
+        } catch (err) {
+            console.error('Sync messages error:', err);
+        }
+
+        try {
+            const files = await fetchFiles(roomId);
+            if (files && JSON.stringify(files) !== JSON.stringify(localFiles)) {
+                localFiles = files;
+                renderFiles(localFiles, filesList);
+            }
+        } catch (err) {
+            console.error('Sync files error:', err);
+        }
+    }
+
     loadInitialData();
+    setInterval(syncData, 2000);
 
     // ================================================================
     // Chat & Files Setup

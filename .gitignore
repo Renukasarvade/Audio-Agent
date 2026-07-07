@@ -8,6 +8,6 @@ AudioAgent-New.zip
 
 # Ignore dependencies and build outputs
 **/node_modules/
-**/dist/
+# **/dist/
 .DS_Store
 *.log

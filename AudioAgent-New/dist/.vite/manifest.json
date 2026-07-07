@@ -1,0 +1,56 @@
+{
+  "../../@crx/manifest": {
+    "file": "assets/crx-manifest.js-CP7tjWQR.js",
+    "name": "crx-manifest.js",
+    "src": "../../@crx/manifest",
+    "isEntry": true
+  },
+  "_contentScript.ts-loader-CH-qtgd5.js": {
+    "file": "assets/contentScript.ts-loader-CH-qtgd5.js",
+    "src": "_contentScript.ts-loader-CH-qtgd5.js"
+  },
+  "_overlay-G-dbucQs.js": {
+    "file": "assets/overlay-G-dbucQs.js",
+    "name": "overlay"
+  },
+  "_teamsEntry.ts-loader-CwYIBj09.js": {
+    "file": "assets/teamsEntry.ts-loader-CwYIBj09.js",
+    "src": "_teamsEntry.ts-loader-CwYIBj09.js"
+  },
+  "src/extension/background.ts": {
+    "file": "assets/background.ts-Ccdpib7Q.js",
+    "name": "background.ts",
+    "src": "src/extension/background.ts",
+    "isEntry": true
+  },
+  "src/extension/content/contentScript.ts": {
+    "file": "assets/contentScript.ts-QiPcIbc8.js",
+    "name": "contentScript.ts",
+    "src": "src/extension/content/contentScript.ts",
+    "isEntry": true,
+    "imports": [
+      "_overlay-G-dbucQs.js"
+    ]
+  },
+  "src/extension/content/dashboardEntry.ts": {
+    "file": "assets/dashboardEntry.ts-CR2luvTO.js",
+    "name": "dashboardEntry.ts",
+    "src": "src/extension/content/dashboardEntry.ts",
+    "isEntry": true
+  },
+  "src/extension/content/teamsEntry.ts": {
+    "file": "assets/teamsEntry.ts-CobO1Ic1.js",
+    "name": "teamsEntry.ts",
+    "src": "src/extension/content/teamsEntry.ts",
+    "isEntry": true,
+    "imports": [
+      "_overlay-G-dbucQs.js"
+    ]
+  },
+  "src/extension/popup/index.html": {
+    "file": "assets/popup-Vq7-fB59.js",
+    "name": "popup",
+    "src": "src/extension/popup/index.html",
+    "isEntry": true
+  }
+}

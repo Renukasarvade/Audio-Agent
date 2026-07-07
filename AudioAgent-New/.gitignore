@@ -1,5 +1,5 @@
 node_modules/
-dist/
+# compiled output allowed for direct guest installs
 .env
 .DS_Store
 .vscode/
