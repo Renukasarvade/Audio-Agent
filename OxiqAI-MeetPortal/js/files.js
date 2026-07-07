@@ -120,8 +120,6 @@ export function initFiles(roomId, displayName, onUploadSuccess) {
 export function renderFiles(files, container) {
     if (!container) return;
 
-    container.innerHTML = '';
-
     if (!files || files.length === 0) {
         container.innerHTML = `
             <div class="empty-state">
@@ -132,10 +130,17 @@ export function renderFiles(files, container) {
                 <span>No files shared yet.<br>Drag &amp; drop to upload.</span>
             </div>
         `;
+        container.dataset.renderedCount = '0';
         return;
     }
 
-    files.forEach(f => {
+    const renderedCount = parseInt(container.dataset.renderedCount || '0', 10);
+    if (renderedCount === 0 || container.querySelector('.empty-state')) {
+        container.innerHTML = '';
+    }
+
+    for (let i = renderedCount; i < files.length; i++) {
+        const f = files[i];
         const item = document.createElement('div');
         item.className = 'file-item';
         item.style.display = 'flex';
@@ -180,5 +185,7 @@ export function renderFiles(files, container) {
         });
 
         container.appendChild(item);
-    });
+    }
+    
+    container.dataset.renderedCount = files.length;
 }

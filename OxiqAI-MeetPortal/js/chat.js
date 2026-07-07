@@ -35,14 +35,44 @@ async function sendChatMessage(roomId, displayName) {
     const text = input.value.trim();
     if (!text) return;
 
+    // --- Optimistic UI Rendering ---
+    const container = document.getElementById('chat-list');
+    if (container) {
+        if (container.querySelector('.empty-state')) {
+            container.innerHTML = '';
+        }
+
+        const card = document.createElement('div');
+        card.className = 'chat-msg';
+
+        const displayTime = new Date().toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+        });
+
+        card.innerHTML = `
+            <div class="chat-header">
+                <span class="chat-sender">${escapeHTML(displayName)}</span>
+                <span class="chat-time">${escapeHTML(displayTime)}</span>
+            </div>
+            <div class="chat-text">${escapeHTML(text)}</div>
+        `;
+        container.appendChild(card);
+        container.scrollTop = container.scrollHeight;
+
+        const renderedCount = parseInt(container.dataset.renderedCount || '0', 10);
+        container.dataset.renderedCount = (renderedCount + 1).toString();
+    }
+
+    input.value = '';
+    input.focus();
+
     try {
         await saveChatMessage(roomId, displayName, text);
     } catch (err) {
         console.error('Error sending chat message:', err);
     }
-
-    input.value = '';
-    input.focus();
 }
 
 /**
@@ -81,8 +111,6 @@ export function renderMessages(messages, container) {
     // Auto-scroll only if user is near the bottom
     const wasAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 60;
 
-    container.innerHTML = '';
-
     if (!messages || messages.length === 0) {
         container.innerHTML = `
             <div class="empty-state">
@@ -92,10 +120,17 @@ export function renderMessages(messages, container) {
                 <span>No messages yet.<br>Start the conversation!</span>
             </div>
         `;
+        container.dataset.renderedCount = '0';
         return;
     }
 
-    messages.forEach(msg => {
+    const renderedCount = parseInt(container.dataset.renderedCount || '0', 10);
+    if (renderedCount === 0 || container.querySelector('.empty-state')) {
+        container.innerHTML = '';
+    }
+
+    for (let i = renderedCount; i < messages.length; i++) {
+        const msg = messages[i];
         const card = document.createElement('div');
         card.className = 'chat-msg';
 
@@ -126,7 +161,9 @@ export function renderMessages(messages, container) {
             <div class="chat-text">${escapeHTML(text)}</div>
         `;
         container.appendChild(card);
-    });
+    }
+
+    container.dataset.renderedCount = messages.length;
 
     if (wasAtBottom) {
         container.scrollTop = container.scrollHeight;

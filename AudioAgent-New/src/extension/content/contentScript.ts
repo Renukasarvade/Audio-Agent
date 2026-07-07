@@ -14,6 +14,8 @@ let meetingDate = '';
 // Keeps track of the latest version of each segment ID
 let transcriptMap = new Map<string, SupabaseSegmentData>();
 let lastActiveSegmentIds = new Set<string>();
+let syncedSegmentIds = new Set<string>();
+let segmentLastChangedTime = new Map<string, number>();
 
 function formatTime(ms: number): string {
   const d = new Date(ms);
@@ -24,14 +26,16 @@ function handleSegmentsUpdate(segments: any[]) {
   if (!meetingId) return;
 
   const currentActiveIds = new Set(segments.map(s => s.id));
+  const now = Date.now();
 
   // 1. Any segment that was active in the previous cycle but is NOT active now is finalized!
   lastActiveSegmentIds.forEach(prevId => {
-    if (!currentActiveIds.has(prevId)) {
+    if (!currentActiveIds.has(prevId) && !syncedSegmentIds.has(prevId)) {
       const finalSeg = transcriptMap.get(prevId);
       if (finalSeg && finalSeg.transcript_text) {
-        console.log('[OxiqAI] Live segment finalized, sending to Supabase:', finalSeg);
+        console.log('[OxiqAI] Live segment finalized (removed), sending to Supabase:', finalSeg);
         saveLiveTranscriptSegment(meetingId, finalSeg.speaker, finalSeg.transcript_text, finalSeg.timestamp);
+        syncedSegmentIds.add(prevId);
       }
     }
   });
@@ -60,8 +64,30 @@ function handleSegmentsUpdate(segments: any[]) {
       timestamp: timeStr,
     };
 
+    const existing = transcriptMap.get(seg.id);
+    if (!existing || existing.transcript_text !== data.transcript_text) {
+       segmentLastChangedTime.set(seg.id, now);
+    }
+    
     // Store/Overwrite segment
     transcriptMap.set(seg.id, data);
+
+    // Broadcast instantly to portal wrapper for snappy UI updates
+    window.parent.postMessage({
+      type: 'OXIQ_INTERIM_TRANSCRIPT',
+      segment: data,
+      id: seg.id
+    }, '*');
+
+    // 3. Auto-sync if it's been idle for 2 seconds
+    if (!syncedSegmentIds.has(seg.id)) {
+       const lastChanged = segmentLastChangedTime.get(seg.id) || now;
+       if (now - lastChanged > 2000) {
+           console.log('[OxiqAI] Live segment finalized (idle), sending to Supabase:', data);
+           saveLiveTranscriptSegment(meetingId, data.speaker, data.transcript_text, data.timestamp);
+           syncedSegmentIds.add(seg.id);
+       }
+    }
   });
 
   lastActiveSegmentIds = currentActiveIds;
@@ -77,356 +103,42 @@ async function syncToSupabase() {
 }
 
 // ============================================================
-// OxiqAI Style Injection Method (No Mirroring Overhead)
+// OxiqAI Style Injection Method (Hide CC only)
 // ============================================================
 
 function injectCssToHideGoogleUi() {
-  const styleId = 'oxiqai-hide-branding-style';
+  const styleId = 'oxiqai-hide-cc-style';
   if (document.getElementById(styleId)) return;
   const style = document.createElement('style');
   style.id = styleId;
   style.textContent = `
-    /* Hide all Google's original headers, text overlays, and utility buttons completely */
-    div[jsname="V676U"], div[data-meeting-title], .NzbeBe, .jv7QQ,
-    div[jsname="pZ99L"], .wY1v9c, .R36Sre, .m9992c,
-    .t7654b, .rG0ehe, .Q86pBc, div[jscontroller="s370ud"], div[jsname="x13uXb"],
-    .cM3h5e, .GOH7ee,
-    div[jsname="b3As7c"], div[data-is-footer], div[data-is-meeting-controls], .pHvYBc, .UnO69,
-    div[jsname="E762U"], button[aria-label*="Meeting safety" i], .Zp5Z5b,
-    /* Hide all native buttons in Google Meet bottom bar by aria-label */
-    button[aria-label*="microphone" i],
-    button[aria-label*="mic" i],
-    button[aria-label*="camera" i],
-    button[aria-label*="video" i],
-    button[aria-label*="present" i],
-    button[aria-label*="screen" i],
-    button[aria-label*="reaction" i],
-    button[aria-label*="emoji" i],
-    button[aria-label*="captions" i],
-    button[aria-label*="Leave" i],
-    button[aria-label*="hand" i],
-    button[aria-label*="options" i],
-    button[aria-label*="everyone" i],
+    /* Hide only the captions button from the Google Meet native bottom bar */
+    button[aria-label*="caption" i],
+    button[data-tooltip*="caption" i],
+    /* Hide native Chat button since we have a custom tab for it */
     button[aria-label*="chat" i],
-    button[aria-label*="Activities" i],
-    button[aria-label*="host control" i],
-    /* Hide top bar details & buttons */
-    button[aria-label*="meeting details" i],
-    div[jsname="x13uXb"],
-    .NzPR9b,
-    .NZPR9b,
-    /* Hide bottom bar background container wrappers */
-    div[role="navigation"],
-    div[jscontroller="h1Z2Lc"],
-    div[jscontroller="Un177c"],
-    .cRy76c,
-    .a5a76c,
-    .r272ac,
-    .Kc2tGc,
-    .S72w7d,
-    .gV53u,
-    /* Hide side panels & drawers completely */
-    div[jsname="t425Mc"],
-    div[role="sidebar"],
-    div[jsname="v0XvKe"],
-    .X3v40b,
-    .axgI9e,
-    /* Hide Google Meet landing/home/lobby entryway branding & settings overlays */
-    div[aria-label*="Meetings" i],
-    div[class*="landing" i],
-    div[jsname="OW330d"],
-    .kWYpY,
-    .Ym8T9b,
-    svg[aria-label*="Google Meet" i],
-    header[role="banner"],
-    div[jsname="O4nF9b"],
-    div[jsname="Gk8ldc"],
-    header,
-    div[jscontroller="eG5mH"],
-    div[class*="settings" i],
-    div[class*="Logo" i],
-    div[class*="account" i],
-    div[class*="profile" i],
-    span[class*="email" i],
-    div[jsname="q7365c"],
-    div[class*="other" i] {
-      display: none !important;
-      opacity: 0 !important;
-      visibility: hidden !important;
-      pointer-events: none !important;
-      height: 0 !important;
-      width: 0 !important;
-      overflow: hidden !important;
-    }
-
-    /* Eliminate all hover control buttons across every single video tile */
-    div[data-participant-id] button,
-    div[jsname="j79O8"],
-    div[class*="tile-controls" i],
-    button[aria-label*="pin" i],
-    button[aria-label*="mute" i] {
-      display: none !important;
-      opacity: 0 !important;
-      visibility: hidden !important;
-      pointer-events: none !important;
-    }
-
-    /* Force the video call container layout to expand flat beneath your custom ribbons */
-    .GvcuGe, .zW9vEb, .E6bY4b, div[jsname="L9Y7fc"], html, body, #yDmH0d {
-        width: 100vw !important;
-        height: 100vh !important;
-        position: fixed !important;
-        top: 0 !important;
-        left: 0 !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        background: #090d16 !important;
-        overflow: hidden !important;
-        display: flex !important;
-        flex-wrap: wrap !important;
-        justify-content: center !important;
-        align-items: center !important;
-        gap: 12px !important;
-    }
-
-    /* Force participant panels to cleanly scale down as the group expands */
-    div[data-participant-id] {
-        flex: 1 1 240px !important;
-        max-width: 48% !important;
-        aspect-ratio: 16/9 !important;
-        background: linear-gradient(145deg, #0b1329 0%, #080d16 100%) !important;
-        border-radius: 16px !important;
-        border: 1px solid rgba(255, 255, 255, 0.05) !important;
-        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4) !important;
-        transition: all 0.25s ease-in-out !important;
-    }
-
-    /* Center user voice initials circles gradient configuration styling */
-    div[jsname="a97n6e"], .gV7Ssc, .M7798c {
-        background: linear-gradient(135deg, #0ea5e9 0%, #6366f1 100%) !important;
-        border: 2px solid rgba(255, 255, 255, 0.2) !important;
-        box-shadow: 0 0 25px rgba(14, 165, 233, 0.35) !important;
-    }
-
-    /* Force entryway lobby elements background colors to OxiqAI dark slate theme */
-    div[jscontroller="H1Z2Lc"],
-    div[jsname="r4n2Ac"],
-    div[jscontroller="B19ACc"],
-    div[class*="card" i],
-    div[class*="container" i],
-    div[class*="surface" i] {
-      background: #090d16 !important;
-      background-color: #090d16 !important;
-      color: #f8fafc !important;
-      border: none !important;
-      box-shadow: none !important;
-    }
-    
-    /* Make lobby headers and paragraph text look white */
-    div[jscontroller="H1Z2Lc"] h1,
-    div[jscontroller="H1Z2Lc"] h2,
-    div[jscontroller="H1Z2Lc"] span,
-    div[jscontroller="H1Z2Lc"] p,
-    div[jscontroller="H1Z2Lc"] div {
-      color: #f8fafc !important;
-    }
-
-    /* Hide native admission dialogues visually but keep them active/clickable in layout */
-    div[role="dialog"]:has(button),
-    .X7vMbc,
-    div[class*="admission-popup" i] {
-      opacity: 0 !important;
-      pointer-events: auto !important;
-      visibility: visible !important;
-    }
-
-    /* Hide native captions but keep DOM active for scraper */
-    .a4cQT, .iOzk7, [jsname="dsSSbb"], .MZy1T, .cXy5B, .U6Acd, .KjWwNd {
-      position: fixed !important;
-      bottom: 20px !important;
-      left: 20px !important;
-      height: 1px !important;
-      width: 1px !important;
-      overflow: hidden !important;
-      opacity: 0.001 !important;
-      pointer-events: none !important;
-      background: transparent !important;
-      z-index: 999999 !important;
-      margin: 0 !important;
-      padding: 0 !important;
-    }
-
-    /* Hide name tags and overlays optionally */
-    .Xg9N7e, 
-    div[jsname="V676U"] {
+    button[data-tooltip*="chat" i],
+    /* Hide native Chat panel specifically, but allow the People/Participants sidebar to open */
+    div[aria-label*="In-call messages" i],
+    div[aria-label="Chat" i] {
         display: none !important;
-    }
-
-    /* Style Meet's native video container to fill the workspace */
-    div[jscontroller="yO202"] {
-      height: 100% !important;
-      width: 100% !important;
-    }
-
-    /* Style native video frames with clean borders */
-    video {
-      border-radius: 12px !important;
-      border: 1px solid rgba(255, 255, 255, 0.08) !important;
-    }
-
-    /* Clean Google's native speaker label backgrounds */
-    div[jsname="gB77cb"] {
-      background: rgba(15, 23, 42, 0.7) !important;
-      backdrop-filter: blur(8px) !important;
-      border-radius: 6px !important;
-      font-family: 'Inter', sans-serif !important;
-      border: 1px solid rgba(255, 255, 255, 0.05) !important;
+        pointer-events: none !important;
     }
   `;
   (document.head || document.documentElement).appendChild(style);
 }
 
 function injectOxiqTopWrapper() {
-  if (document.getElementById('oxiqai-top-mask-wrapper')) return;
-
-  // 1. Create the custom OxiqAI Header Ribbon to hide Google's floating text fields
-  const topRibbon = document.createElement('div');
-  topRibbon.id = 'oxiqai-top-mask-wrapper';
-  topRibbon.style.cssText = `
-    position: fixed;
-    top: 0; left: 0; right: 0;
-    height: 60px;
-    background: linear-gradient(to bottom, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.7) 100%);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    z-index: 2147483647; /* Sits on top of Google Meet completely */
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 24px;
-    font-family: 'Inter', system-ui, sans-serif;
-    user-select: none;
-    pointer-events: auto;
-  `;
-
-  // Insert your brand parameters inside the header ribbon
-  topRibbon.innerHTML = `
-    <div style="display:flex; align-items:center; gap:12px;">
-      <div style="width:32px; height:32px; background:linear-gradient(135deg, #0ea5e9, #6366f1); border-radius:8px; display:flex; align-items:center; justify-content:center; font-weight:800; color:#fff; font-size:16px; box-shadow:0 0 15px rgba(14,165,233,0.4);">O</div>
-      <span style="color:#fff; font-weight:700; font-size:16px; letter-spacing:-0.3px;">OxiqAI <span style="font-weight:400; color:#94a3b8; font-size:13px;">Studio</span></span>
-    </div>
-    <div style="display:flex; align-items:center; gap:14px;">
-      <span style="background:rgba(16,185,129,0.1); border:1px solid rgba(16,185,129,0.25); color:#34d399; font-size:11px; font-weight:700; padding:4px 12px; border-radius:99px; letter-spacing:0.5px;">● SECURE AUDIO AGENT CONNECTED</span>
-    </div>
-  `;
-
-  // 2. Create the lower left custom room watermarks to layer over Google's naming strings
-  const bottomLabel = document.createElement('div');
-  bottomLabel.id = 'oxiqai-bottom-label';
-  bottomLabel.style.cssText = `
-    position: fixed;
-    bottom: 24px; left: 24px;
-    background: rgba(15, 23, 42, 0.65);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    border: 1px solid rgba(255,255,255,0.06);
-    padding: 6px 14px;
-    border-radius: 8px;
-    color: #f1f5f9;
-    font-size: 12px;
-    font-weight: 500;
-    font-family: 'Inter', sans-serif;
-    z-index: 2147483647;
-    pointer-events: none;
-  `;
-  bottomLabel.textContent = "OxiqAI Workspace Environment";
-
-  // Append elements natively to the frame body
-  document.body.appendChild(topRibbon);
-  document.body.appendChild(bottomLabel);
+  // Disabled as per user request
 }
 
 function hideMeetingDetailsLayout() {
-  // Hide left-hand clock & meeting link text (e.g. "18:13 | xrt-uoxo-jbt")
-  // and right-hand participant counts & avatar bubbles
-  const selectors = [
-    'div[data-meeting-title]',
-    'div[jsname="V676U"]',
-    '.NzbeBe',
-    '.jv7QQ',
-    '.NzPR9b',
-    '.NZPR9b',
-    '.cM3h5e',
-    '.GOH7ee',
-    'div[jsname="pZ99L"]',
-    '.wY1v9c',
-    '.R36Sre',
-    '.m9992c',
-    'div[aria-label*="Meeting details" i]',
-    /* Also hide dynamic bubbles on the top-right */
-    '.t7654b',
-    '.rG0ehe',
-    '.Q86pBc',
-    'div[jscontroller="s370ud"]',
-    'div[jsname="x13uXb"]'
-  ];
-  
-  selectors.forEach(sel => {
-    try {
-      const els = document.querySelectorAll(sel);
-      els.forEach(el => {
-        const html = el as HTMLElement;
-        if (html.style.display !== 'none') {
-          html.style.setProperty('display', 'none', 'important');
-          html.style.setProperty('opacity', '0', 'important');
-          html.style.setProperty('visibility', 'hidden', 'important');
-        }
-      });
-    } catch (e) {}
-  });
-
+  // Disabled as per user request
 }
 
 function runThrottledRegexTextSweeper() {
-  // Throttled sweep of the DOM for code format strings (e.g. xxx-yyyy-zzz) to prevent 100% CPU loops
-  try {
-    const divs = document.querySelectorAll('div, span, button');
-    const codeRegex = /\b[a-z]{3}-[a-z]{4}-[a-z]{3}\b/;
-    divs.forEach(el => {
-      if (el.closest('#oxiqai-top-mask-wrapper') || el.closest('#oxiqai-bottom-label') || el.closest('#oxiqai-overlay-root')) return;
-      const text = el.textContent || '';
-      if (text.length < 50 && (text.includes('|') || codeRegex.test(text))) {
-        const html = el as HTMLElement;
-        if (html.style.display !== 'none') {
-          html.style.setProperty('display', 'none', 'important');
-          html.style.setProperty('opacity', '0', 'important');
-          html.style.setProperty('visibility', 'hidden', 'important');
-        }
-      }
-    });
-  } catch (e) {}
+  // Disabled as per user request
 }
-
-// Inject immediate style to hide native Meet elements as early as possible
-const startStyle = document.createElement('style');
-startStyle.textContent = `
-  button[aria-label*="microphone" i],
-  button[aria-label*="mic" i],
-  button[aria-label*="camera" i],
-  button[aria-label*="video" i],
-  button[aria-label*="present" i],
-  button[aria-label*="Leave" i],
-  div[role="navigation"],
-  div[jscontroller="h1Z2Lc"],
-  div[jscontroller="Un177c"],
-  .cRy76c, .a5a76c, .r272ac, .Kc2tGc, .S72w7d, .gV53u {
-    opacity: 0.001 !important;
-    pointer-events: none !important;
-    display: none !important;
-  }
-`;
-document.documentElement.appendChild(startStyle);
 
 // --- Chrome Message Listener ---
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -569,22 +281,7 @@ window.addEventListener('message', (event) => {
         }
       }, 1000);
 
-      // Auto-admit guest participants loop (runs continuously during session)
-      const admitInterval = setInterval(() => {
-        if (!isRunning) {
-          clearInterval(admitInterval);
-          return;
-        }
-        const admitBtns = Array.from(document.querySelectorAll('button, [role="button"]')).filter(el => {
-          const txt = (el.textContent || '').trim().toLowerCase();
-          return txt.includes('admit') || txt.includes('admit all') || txt.includes('admitir') || txt.includes('admitir a todos');
-        }) as HTMLElement[];
-        
-        admitBtns.forEach(btn => {
-          console.log('[OxiqAI] Automatically admitting guest participant.');
-          btn.click();
-        });
-      }, 1000);
+      // Auto-admit guest participants is handled by the MutationObserver via handleAutomatedGuestAdmission
     }
   }
 
@@ -720,13 +417,14 @@ function injectOxiqGatewayUI() {
 function handleAutomatedGuestAdmission() {
   // Locates Google's dynamic pop-up buttons via text descriptors or structural selectors
   // Targets standard matching variations: "Admit", "Admit all", "Allow", or "Admit guest"
-  const admitButton = Array.from(document.querySelectorAll('button, span, div')).find(el => {
+  const admitButton = Array.from(document.querySelectorAll('button:not([data-oxiq-clicked="true"]), span:not([data-oxiq-clicked="true"]), [role="button"]:not([data-oxiq-clicked="true"])')).find(el => {
     const text = el.textContent?.toLowerCase() || '';
     return text === 'admit' || text === 'admit all' || text.includes('admit entry') || text === 'admitir' || text === 'admitir a todos';
   }) as HTMLElement | null;
 
   if (admitButton) {
     console.log('[OxiqAI Engine] Incoming participant detected. Executing auto-admit click event...');
+    admitButton.dataset.oxiqClicked = "true";
     admitButton.click();
   }
 }

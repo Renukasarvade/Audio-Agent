@@ -101,15 +101,25 @@ export function renderTranscripts(transcripts, container) {
     if (!container) return;
     const wasAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 60;
     const liveBox = document.getElementById('oxiq-interim-box');
-    container.innerHTML = '';
 
     if (!transcripts || transcripts.length === 0) {
         container.innerHTML = `<div class="empty-state" style="padding:24px; color:#64748b; text-align:center; font-size:13px;">Streaming transcripts live...</div>`;
+        container.dataset.renderedCount = '0';
         return;
     }
 
-    transcripts.forEach(t => {
+    const renderedCount = parseInt(container.dataset.renderedCount || '0', 10);
+    if (renderedCount === 0 || container.querySelector('.empty-state')) {
+        container.innerHTML = '';
+        if (liveBox) container.appendChild(liveBox); // keep live box at bottom if it was there
+    }
+
+    for (let i = renderedCount; i < transcripts.length; i++) {
+        const t = transcripts[i];
         const bubble = document.createElement('div');
+        if (t.id) {
+            bubble.id = 'transcript-bubble-' + t.id;
+        }
         bubble.className = 'transcript-bubble';
         bubble.style.cssText = 'margin-bottom:12px; padding:8px 12px; background:rgba(255,255,255,0.02); border-radius:6px; border-left:3px solid #38bdf8;';
         bubble.innerHTML = `
@@ -119,9 +129,16 @@ export function renderTranscripts(transcripts, container) {
             </div>
             <div style="font-size:13px; color:#f1f5f9; line-height:1.4;">${escapeHTML(t.text || t.content || '')}</div>
         `;
-        container.appendChild(bubble);
-    });
+        
+        // Insert before liveBox if it exists, otherwise append
+        if (liveBox && liveBox.parentNode === container) {
+            container.insertBefore(bubble, liveBox);
+        } else {
+            container.appendChild(bubble);
+        }
+    }
 
-    if (liveBox) container.appendChild(liveBox);
+    container.dataset.renderedCount = transcripts.length;
+
     if (wasAtBottom) container.scrollTop = container.scrollHeight;
 }

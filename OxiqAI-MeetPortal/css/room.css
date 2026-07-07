@@ -315,7 +315,7 @@ body {
 .main-container {
     display: flex;
     flex-direction: row;
-    height: calc(100vh - 128px); /* 56px header + 72px control bar */
+    height: calc(100vh - 56px); /* 56px header */
 }
 
 /* ---- Video Container (Google Meet / Teams iframe) ---- */

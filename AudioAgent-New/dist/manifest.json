@@ -30,7 +30,7 @@
   "content_scripts": [
     {
       "js": [
-        "assets/contentScript.ts-loader-CH-qtgd5.js"
+        "assets/contentScript.ts-loader-DKaQELKF.js"
       ],
       "matches": [
         "https://meet.google.com/*"
@@ -67,7 +67,7 @@
       ],
       "resources": [
         "assets/overlay-G-dbucQs.js",
-        "assets/contentScript.ts-QiPcIbc8.js"
+        "assets/contentScript.ts-haYKh6Bi.js"
       ],
       "use_dynamic_url": false
     },

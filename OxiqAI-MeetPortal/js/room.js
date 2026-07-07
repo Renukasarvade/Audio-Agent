@@ -16,6 +16,15 @@ import { startTranscription, stopTranscription, renderTranscripts } from './tran
 import { initChat, renderMessages } from './chat.js';
 import { initFiles, renderFiles } from './files.js';
 
+function escapeHTML(str) {
+    if (typeof str !== 'string') return '';
+    return str.replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
+              .replace(/"/g, '&quot;')
+              .replace(/'/g, '&#39;');
+}
+
 // ---------- Room Identification ----------
 const params   = new URLSearchParams(window.location.search);
 const roomId   = params.get('id');
@@ -188,18 +197,62 @@ document.addEventListener('DOMContentLoaded', async () => {
                             if (badge) badge.textContent = activeUsers.length.toString();
                             
                             box.innerHTML = activeUsers.map(name => `
-                                <div style="display:flex; align-items:center; justify-content:space-between; padding:10px 12px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); border-radius:8px; margin-bottom:8px;">
-                                    <div style="display:flex; align-items:center; gap:10px;">
-                                        <div style="width:26px; height:26px; background:linear-gradient(135deg, #38bdf8, #6366f1); border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:700; color:#fff;">
-                                            ${(name || 'P').charAt(0).toUpperCase()}
-                                        </div>
-                                        <span style="font-size:13px; font-weight:500; color:#e2e8f0;">${name}</span>
+                                <div style="display:flex; align-items:center; gap:8px;">
+                                    <div style="width:32px; height:32px; border-radius:50%; background:#1e293b; display:flex; align-items:center; justify-content:center; color:#e2e8f0; font-weight:600; border:1px solid rgba(255,255,255,0.1)">
+                                        ${escapeHTML(name.substring(0,2).toUpperCase())}
                                     </div>
-                                    <span style="font-size:10px; color:#10b981; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">Online</span>
+                                    <span style="color:#e2e8f0; font-size:13px;">${escapeHTML(name)}</span>
                                 </div>
                             `).join('');
                         }
                     }
+                    
+                    if (event.data.type === 'OXIQ_INTERIM_TRANSCRIPT') {
+                        const payload = event.data.segment;
+                        const segId = event.data.id;
+                        payload.id = segId;
+                        
+                        const container = document.getElementById('transcript-list');
+                        if (container && payload.transcript_text) {
+                            const bubbleId = 'transcript-bubble-' + segId;
+                            let bubble = document.getElementById(bubbleId);
+                            
+                            const idx = localTranscripts.findIndex(t => t.id === segId);
+                            if (idx !== -1) {
+                                localTranscripts[idx] = payload;
+                            } else {
+                                localTranscripts.push(payload);
+                            }
+
+                            if (!bubble) {
+                                bubble = document.createElement('div');
+                                bubble.id = bubbleId;
+                                bubble.className = 'transcript-bubble';
+                                bubble.style.cssText = 'margin-bottom:12px; padding:8px 12px; background:rgba(255,255,255,0.02); border-radius:6px; border-left:3px solid #38bdf8;';
+                                
+                                const liveBox = document.getElementById('oxiq-interim-box');
+                                if (liveBox && liveBox.parentNode === container) {
+                                    container.insertBefore(bubble, liveBox);
+                                } else {
+                                    container.appendChild(bubble);
+                                }
+                                
+                                const renderedCount = parseInt(container.dataset.renderedCount || '0', 10);
+                                container.dataset.renderedCount = (renderedCount + 1).toString();
+                            }
+                            
+                            bubble.innerHTML = `
+                                <div style="display:flex; justify-content:space-between; font-size:11px; margin-bottom:4px;">
+                                    <b style="color:#60a5fa;">${escapeHTML(payload.speaker || 'Unknown')}</b>
+                                    <span style="color:#64748b;">${escapeHTML(payload.timestamp || '')}</span>
+                                </div>
+                                <div style="font-size:13px; color:#f1f5f9; line-height:1.4;">${escapeHTML(payload.transcript_text || '')}</div>
+                            `;
+                            
+                            container.scrollTop = container.scrollHeight;
+                        }
+                    }
+
                     if (event.data.action === 'PORTAL_REDIRECT_HOME') {
                         console.log('[OxiqAI] Timeout redirect home requested.');
                         window.location.href = 'index.html';
@@ -312,32 +365,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Leave Meeting
     // ================================================================
     const leaveBtn = document.getElementById('leave-btn');
-    leaveBtn.addEventListener('click', () => {
-        window.location.href = 'index.html';
-    });
+    if (leaveBtn) {
+        leaveBtn.addEventListener('click', () => {
+            window.location.href = 'index.html';
+        });
+    }
 
     // ================================================================
     // Transcription (Web Speech API)
     // ================================================================
-    const transcriptToggle = document.getElementById('transcript-toggle');
-    const transcriptStatus = document.getElementById('transcript-status');
-    const transcriptList   = document.getElementById('transcript-list');
-    let transcribing = false;
+    const transcriptList = document.getElementById('transcript-list');
 
-    transcriptToggle.addEventListener('click', () => {
-        if (!transcribing) {
-            startTranscription(roomId, displayName, () => {
-                // Realtime subscription and syncData background interval handle updates
-            });
-            transcribing = true;
-            transcriptToggle.classList.add('active');
-            transcriptStatus.textContent = 'Stop';
-        } else {
-            stopTranscription();
-            transcribing = false;
-            transcriptToggle.classList.remove('active');
-            transcriptStatus.textContent = 'Start';
-        }
+    // Automatically start transcription when entering the room
+    startTranscription(roomId, displayName, () => {
+        // Realtime subscription and syncData background interval handle updates
     });
 
     let localTranscripts = [];
@@ -411,7 +452,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     loadInitialData();
-    setInterval(syncData, 2000);
+    // Reduced polling frequency from 2s to 30s to fix performance issues. Supabase realtime sockets handle instant sync.
+    setInterval(syncData, 30000);
 
     // ================================================================
     // Chat & Files Setup
